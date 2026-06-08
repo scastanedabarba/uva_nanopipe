@@ -1,21 +1,24 @@
 #!/bin/bash
 set -euo pipefail
 
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+REPO_DIR="$( dirname "$SCRIPT_DIR" )"
+
 cmd="${1:-}"
 
 case "$cmd" in
-  coverage)
-    shift
-    scripts/coverage/calculate_coverage.sh "$@"
-    ;;
-  assembly)
-    shift
-    scripts/assembly/run_autocycler.sh "$@"
-    ;;
-  *)
-    echo "Usage:"
-    echo "  uva_nanopipe coverage [args]"
-    echo "  uva_nanopipe assembly [args]"
-    exit 1
-    ;;
+    coverage)
+        shift
+        "${REPO_DIR}/scripts/coverage/calculate_coverage.sh" "$@"
+        ;;
+    assembly)
+        shift
+        "${REPO_DIR}/scripts/assembly/run_autocycler.sh" "$@"
+        ;;
+    *)
+        echo "Usage:"
+        echo "  uva_nanopipe coverage [args]"
+        echo "  uva_nanopipe assembly [args]"
+        exit 1
+        ;;
 esac
