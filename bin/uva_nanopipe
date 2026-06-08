@@ -15,9 +15,14 @@ case "$cmd" in
         shift
         "${REPO_DIR}/scripts/assembly/run_autocycler.sh" "$@"
         ;;
+    summarize)
+        shift
+        "${REPO_DIR}/scripts/summarize/combine_coverage.sh" "$@"
+        ;;
     *)
         echo "Usage:"
         echo "  uva_nanopipe coverage [args]"
+        echo "  uva_nanopipe summarize [args]"
         echo "  uva_nanopipe assembly [args]"
         exit 1
         ;;

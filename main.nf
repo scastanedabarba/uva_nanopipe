@@ -1,6 +1,7 @@
 nextflow.enable.dsl=2
 
 include { COVERAGE } from './modules/local/coverage'
+include { SUMMARIZE_COVERAGE } from './modules/local/summarize_coverage'
 
 workflow {
 
@@ -16,4 +17,8 @@ workflow {
         }
 
     COVERAGE(samples_ch)
+
+    SUMMARIZE_COVERAGE(
+        COVERAGE.out.coverage_dir.collect()
+    )
 }
