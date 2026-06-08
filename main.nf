@@ -1,6 +1,15 @@
 nextflow.enable.dsl=2
 
+include { COVERAGE } from './modules/local/coverage'
+
 workflow {
-    log.info "uva_nanopipe placeholder workflow"
-    log.info "Next step: add COVERAGE process"
+
+    samples_ch = Channel
+        .fromPath(params.input)
+        .splitCsv(header: true)
+        .map { row ->
+            tuple(row.Isolate, file(row.Reads))
+        }
+
+    COVERAGE(samples_ch)
 }
