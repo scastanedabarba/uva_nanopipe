@@ -1,0 +1,21 @@
+#!/bin/bash
+set -euo pipefail
+
+cmd="${1:-}"
+
+case "$cmd" in
+  coverage)
+    shift
+    scripts/coverage/calculate_coverage.sh "$@"
+    ;;
+  assembly)
+    shift
+    scripts/assembly/run_autocycler.sh "$@"
+    ;;
+  *)
+    echo "Usage:"
+    echo "  uva_nanopipe coverage [args]"
+    echo "  uva_nanopipe assembly [args]"
+    exit 1
+    ;;
+esac

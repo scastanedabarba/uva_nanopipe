@@ -1,0 +1,11 @@
+name: uva_nanopipe_coverage
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - nanostat
+  - chopper
+  - seqtk
+  - autocycler
+  - raven-assembler
+  - gzip
