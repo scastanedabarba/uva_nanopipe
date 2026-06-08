@@ -4,6 +4,10 @@ include { COVERAGE } from './modules/local/coverage'
 
 workflow {
 
+    if (params.input == null) {
+        error "Please provide an input CSV with --input"
+    }
+
     samples_ch = Channel
         .fromPath(params.input)
         .splitCsv(header: true)
