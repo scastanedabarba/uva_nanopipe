@@ -1,329 +1,204 @@
-# uva_nanopipe
 
-`uva_nanopipe` is a developing Nanopore analysis pipeline. The current implemented step performs read filtering, read summary statistics, Raven-based genome size estimation, and coverage estimation for one or more isolates.
+# UVA NanoPipe
 
-The pipeline is being developed first as modular bash scripts wrapped by Nextflow. The long-term goal is to transition the workflow toward a portable nf-core-style pipeline.
+UVA NanoPipe is a modular long-read bacterial genome assembly pipeline being developed for Oxford Nanopore sequencing data. The pipeline is designed around Nextflow DSL2 and is intended to eventually become an nf-core compatible workflow.
 
----
+Current implemented stages:
 
-# Current status
-
-Implemented:
-
-- Single-isolate coverage script
-- Command-line wrapper
-- Conda environment for coverage step
-- Initial Nextflow `COVERAGE` process
-- SLURM execution through a UVA-specific config file
-
-Not yet implemented:
-
-- Summary/combine step
-- Assembly step
-- Containers
-- nf-core template structure
+1. Coverage estimation and read filtering
+2. Autocycler subsampling
+3. Parallel assembler execution
+4. Assembly weighting
+5. Final Autocycler consensus generation
 
 ---
 
-# Repository structure
+# Current Pipeline Structure
 
 uva_nanopipe/
 ├── bin/
-│   └── uva_nanopipe
-├── scripts/
-│   ├── coverage/
-│   │   └── calculate_coverage.sh
-│   └── assembly/
-│       └── run_autocycler.sh
-├── modules/
-│   └── local/
-│       └── coverage.nf
-├── envs/
-│   └── coverage.yml
 ├── conf/
-│   └── uva.config
-├── test_data/
+├── envs/
+├── modules/
+├── scripts/
 ├── main.nf
-├── nextflow.config
-└── README.md
+└── README.txt
 
 ---
 
-# Coverage step
+# Current Workflow
 
-The current coverage workflow performs the following steps for each isolate:
+## Step 1 — Coverage Estimation
 
-1. Runs NanoStat before trimming
-2. Filters reads with Chopper
-3. Runs NanoStat after trimming
-4. Downsamples reads for genome size estimation if needed
-5. Estimates genome size using `autocycler helper genome_size`
-6. Estimates coverage from total filtered bases and genome size
+Processes:
+- NanoStat
+- Chopper filtering
+- Genome size estimation with Autocycler helper (Raven)
+- Coverage estimation
 
----
-
-# Coverage outputs
-
-Each isolate produces:
-
-coverage.csv
-read_filtering.csv
-trimmed_reads/
-genome_size/
-
-Expected directory structure:
-
-results/coverage/AR_353/
-├── coverage.csv
-├── read_filtering.csv
-├── trimmed_reads/
-│   ├── AR_353.trimmed.fastq.gz
-│   ├── pre_trimming.nanostat.txt
-│   └── post_trimming.nanostat.txt
-└── genome_size/
-    ├── AR_353.genome_size_reads.fastq.gz
-    └── genome_size.txt
+Outputs:
+- coverage.csv
+- read_filtering.csv
+- trimmed reads
+- genome_size.txt
 
 ---
 
-# coverage.csv columns
+## Step 2 — Autocycler Subsample
 
-isolate,filtered_reads,total_bases,genome_size,coverage_est,min_read_depth,status
+Runs:
+- autocycler subsample
+
+Produces:
+- subsampled read sets
+- draft assembly preparation
 
 ---
 
-# Input CSV format
+## Step 3 — Parallel Assembly
 
-The current Nextflow workflow expects a CSV with the following columns:
+Each assembler/sample combination is submitted independently through Nextflow + SLURM.
+
+Assemblers currently supported:
+- raven
+- miniasm
+- flye
+- metamdbg
+- necat
+- nextdenovo
+- canu
+- plassembler
+
+Each assembler runs independently on:
+- sample_01
+- sample_02
+- sample_03
+- sample_04
+
+---
+
+## Step 4 — Assembly Weighting
+
+Post-processing:
+- Plassembler circular contig weighting
+- Flye/Canu consensus weighting
+- Assembly collection
+
+---
+
+## Step 5 — Autocycler Finalization
+
+Runs:
+- autocycler compress
+- autocycler cluster
+- autocycler trim
+- autocycler resolve
+- autocycler combine
+
+Produces:
+- final consensus assembly
+
+---
+
+# Running the Pipeline
+
+## Example Input CSV
 
 Isolate,Reads
-AR_353,/path/to/AR_353.fastq.gz
-
-Example:
-
-Isolate,Reads
-AR_353,/project/som_infc_dis_mathers/genomics/nanopore/nanofilt_qc/20250515_rapidBac_GXB04608_Run027_v14/AR_353.fastq.gz
+AR_091,/path/to/AR_091.fastq.gz
 
 ---
 
-# Coverage Conda environment
-
-The coverage process uses:
-
-envs/coverage.yml
-
-Create the environment manually:
-
-module load miniforge
-
-conda env create -f envs/coverage.yml
-
-Activate:
-
-conda activate uva_nanopipe_coverage
-
-Test installed software:
-
-which NanoStat
-which chopper
-which seqtk
-which autocycler
-
-Nextflow will automatically create and cache Conda environments when using a Conda-enabled profile.
-
-No user-specific Conda cache directory is hardcoded into the pipeline.
-
-Users who want to control Conda cache locations can set:
-
-export NXF_CONDA_CACHEDIR=/path/to/cache
-
-externally.
-
----
-
-# Running the coverage script directly
-
-Example direct execution:
-
-./bin/uva_nanopipe coverage \
-  --isolate AR_353 \
-  --reads /path/to/AR_353.fastq.gz \
-  --outdir results/coverage/AR_353 \
-  --threads 4
-
----
-
-# Running with Nextflow locally
-
-Local execution is intended only for tiny test data.
-
-Example:
+## Example Run
 
 nextflow run main.nf \
-  -profile local \
-  --input test_data/coverage_test.csv \
-  --outdir results/test_local
+  -profile slurm \
+  -c conf/uva.config \
+  --input linelist.csv \
+  --outdir results/test
 
 ---
 
-# UVA/Rivanna configuration
+# Rivanna Configuration
 
-The main `nextflow.config` should remain portable and should not include UVA-specific accounts, queues, usernames, or scratch paths.
-
-UVA-specific SLURM settings should be stored in:
-
-conf/uva.config
-
-Create it with:
-
-mkdir -p conf
-nano conf/uva.config
-
-Add:
+Example conf/uva.config
 
 process {
+
     executor = 'slurm'
     queue = 'standard'
-    clusterOptions = '--account=amr_services_paid'
+    account = 'amr_services_paid'
+
+    cpus = 8
+    memory = '32 GB'
+    time = '48h'
 }
 
-This tells Nextflow to:
-
-- submit jobs through SLURM
-- use the `standard` partition
-- charge jobs to the `amr_services_paid` account
+params {
+    plassembler_db = "/path/to/plassembler_db"
+}
 
 ---
 
-# Running with Nextflow on UVA/Rivanna
+# Plassembler Database
 
-Example:
+If plassembler is enabled, a Plassembler database must be installed separately.
 
-nextflow run /home/sgj4qr/github_repos/uva_nanopipe/main.nf \
-  -profile slurm \
-  -c /home/sgj4qr/github_repos/uva_nanopipe/conf/uva.config \
-  --input linelist.csv \
-  --outdir results/test_nextflow
+## Install Database
 
-Resume a previous run:
+conda activate autocycler
+plassembler download -d /path/to/plassembler_db
 
-nextflow run /home/sgj4qr/github_repos/uva_nanopipe/main.nf \
-  -profile slurm \
-  -c /home/sgj4qr/github_repos/uva_nanopipe/conf/uva.config \
-  --input linelist.csv \
-  --outdir results/test_nextflow \
-  -resume
+## Provide Database Path
+
+--plassembler_db /path/to/plassembler_db
+
+or in config:
+
+params {
+    plassembler_db = "/path/to/plassembler_db"
+}
 
 ---
 
-# Monitoring jobs on Rivanna
+# Development Notes
 
-Check submitted jobs:
+Current priorities:
+1. Stabilize assembly workflow
+2. Add polishing
+3. Add annotation
+4. Add QC summaries
+5. Add container support
+6. Transition toward nf-core structure
+
+---
+
+# Design Philosophy
+
+Autocycler is intentionally split into:
+1. Draft assembly generation
+2. Final consensus generation
+
+This allows users to:
+- inspect assemblies
+- remove noisy assemblies
+- modify weights
+- rerun finalization only
+
+---
+
+# Useful Commands
+
+## Resume
+
+-resume
+
+## Monitor Jobs
 
 squeue -u $USER
 
-Check generated outputs:
+## Inspect Logs
 
-find results/test_nextflow -maxdepth 4 -type f
-
-Inspect task logs:
-
-cat work/*/*/.command.err
-cat work/*/*/.command.out
-cat work/*/*/.command.log
-
-Inspect generated SLURM directives:
-
-grep -R "#SBATCH" work/*/*/.command.run
-
----
-
-# Nextflow profiles
-
-Profiles are stored in:
-
-nextflow.config
-
-Current profiles:
-
-- local
-- conda
-- slurm
-- apptainer
-
-Run examples:
-
-nextflow run main.nf -profile local
-
-nextflow run main.nf -profile slurm
-
-Future containerized execution:
-
-nextflow run main.nf -profile apptainer
-
----
-
-# Current Nextflow architecture
-
-The workflow currently uses:
-
-main.nf
-
-which imports:
-
-modules/local/coverage.nf
-
-The actual bioinformatics logic remains in:
-
-scripts/coverage/calculate_coverage.sh
-
-This separation allows:
-
-- easier debugging
-- modular workflow development
-- future nf-core transition
-- container compatibility
-
----
-
-# Development roadmap
-
-Completed:
-
-1. Refactor coverage script to run one isolate
-2. Test coverage script manually
-3. Create wrapper script
-4. Test wrapper execution
-5. Create coverage Conda environment
-6. Convert coverage into a Nextflow process
-7. Test coverage process with SLURM
-
-Planned:
-
-8. Add combine/summarize process
-9. Add assembly placeholder
-10. Implement assembly script
-11. Convert assembly into a Nextflow process
-12. Add Apptainer/Singularity containers
-13. Add test datasets
-14. Improve parameter/config handling
-15. Move toward nf-core-style structure
-
----
-
-# Notes
-
-Current development prioritizes:
-
-- modularity
-- portability
-- reproducibility
-- separation of workflow orchestration from bioinformatics logic
-
-The pipeline intentionally avoids:
-
-- hardcoded usernames
-- hardcoded scratch directories
-- hardcoded Conda cache paths
-- institution-specific assumptions in the default configuration
+find work -name ".command.err"
+find work -name ".command.out"
 

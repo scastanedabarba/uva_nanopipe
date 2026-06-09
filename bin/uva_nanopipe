@@ -19,11 +19,34 @@ case "$cmd" in
         shift
         "${REPO_DIR}/scripts/summarize/combine_coverage.sh" "$@"
         ;;
+    autocycler-subsample)
+        shift
+        "${REPO_DIR}/scripts/assembly/autocycler_subsample.sh" "$@"
+        ;;
+
+    autocycler-assemble-one)
+        shift
+        "${REPO_DIR}/scripts/assembly/autocycler_assemble_one.sh" "$@"
+        ;;
+
+    autocycler-weight)
+        shift
+        "${REPO_DIR}/scripts/assembly/autocycler_weight.sh" "$@"
+        ;;
+
+    autocycler-finish)
+        shift
+        "${REPO_DIR}/scripts/assembly/autocycler_finish.sh" "$@"
+        ;;
     *)
         echo "Usage:"
         echo "  uva_nanopipe coverage [args]"
         echo "  uva_nanopipe summarize [args]"
         echo "  uva_nanopipe assembly [args]"
+        echo "  uva_nanopipe autocycler-subsample [args]"
+        echo "  uva_nanopipe autocycler-assemble-one [args]"
+        echo "  uva_nanopipe autocycler-weight [args]"
+        echo "  uva_nanopipe autocycler-finish [args]"
         exit 1
         ;;
 esac
