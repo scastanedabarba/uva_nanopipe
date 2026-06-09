@@ -1,22 +1,24 @@
 process AUTOCYCLER_FINISH {
 
-    tag "${drafts_dir.parent.baseName}"
+    tag "${isolate}"
 
     conda "/scratch/sgj4qr/pgcoe_nanopore/autocycler"
 
     input:
-    path drafts_dir
+    tuple val(isolate), path(assembly_fastas)
 
     output:
-    path "${drafts_dir.parent.baseName}/final", emit: final_dir
+    path "${isolate}/final", emit: final_dir
 
     script:
     """
-    isolate="${drafts_dir.parent.baseName}"
+    mkdir -p assemblies
+
+    cp ${assembly_fastas.join(' ')} assemblies/
 
     ${projectDir}/bin/uva_nanopipe autocycler-finish \
-        --isolate "\${isolate}" \
-        --assemblies "${drafts_dir}/assemblies" \
-        --outdir "\${isolate}/final"
+        --isolate "${isolate}" \
+        --assemblies assemblies \
+        --outdir "${isolate}/final"
     """
 }

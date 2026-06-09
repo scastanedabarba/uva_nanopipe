@@ -24,28 +24,57 @@ if [[ ! -d "$ASSEMBLIES" ]]; then
     exit 1
 fi
 
+ASSEMBLIES=$(readlink -f "$ASSEMBLIES")
+
 mkdir -p "$OUTDIR"
 cd "$OUTDIR"
 
 echo "[INFO] Running Autocycler finish steps for ${ISOLATE}"
+echo "[INFO] Assemblies directory: $ASSEMBLIES"
+
+n_assemblies=$(find "$ASSEMBLIES" -name "*.fasta" -type f | wc -l)
+
+if [[ "$n_assemblies" -eq 0 ]]; then
+    echo "[ERROR] No FASTA assemblies found in: $ASSEMBLIES" >&2
+    exit 1
+fi
+
+echo "[INFO] Found $n_assemblies FASTA assemblies"
 
 autocycler compress \
     -i "$ASSEMBLIES" \
     -a autocycler_out \
+    >> autocycler.stdout \
     2>> autocycler.stderr
 
 autocycler cluster \
     -a autocycler_out \
+    >> autocycler.stdout \
     2>> autocycler.stderr
 
-for c in autocycler_out/clustering/qc_pass/cluster_*; do
-    autocycler trim -c "$c" 2>> autocycler.stderr
-    autocycler resolve -c "$c" 2>> autocycler.stderr
+shopt -s nullglob
+clusters=(autocycler_out/clustering/qc_pass/cluster_*)
+shopt -u nullglob
+
+if [[ ${#clusters[@]} -eq 0 ]]; then
+    echo "[ERROR] No Autocycler QC-pass clusters found" >&2
+    exit 1
+fi
+
+for c in "${clusters[@]}"; do
+    autocycler trim -c "$c" \
+        >> autocycler.stdout \
+        2>> autocycler.stderr
+
+    autocycler resolve -c "$c" \
+        >> autocycler.stdout \
+        2>> autocycler.stderr
 done
 
 autocycler combine \
     -a autocycler_out \
     -i autocycler_out/clustering/qc_pass/cluster_*/5_final.gfa \
+    >> autocycler.stdout \
     2>> autocycler.stderr
 
 echo "[INFO] Autocycler finish complete for ${ISOLATE}"

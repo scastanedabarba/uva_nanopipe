@@ -73,5 +73,5 @@ workflow {
 
     AUTOCYCLER_WEIGHT(weight_input_ch)
 
-    AUTOCYCLER_FINISH(AUTOCYCLER_WEIGHT.out.drafts_dir)
+    AUTOCYCLER_FINISH(AUTOCYCLER_WEIGHT.out.assemblies)
 }
