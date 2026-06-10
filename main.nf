@@ -2,11 +2,11 @@ nextflow.enable.dsl=2
 
 include { COVERAGE } from './modules/local/coverage'
 include { SUMMARIZE_COVERAGE } from './modules/local/summarize_coverage'
-
 include { AUTOCYCLER_SUBSAMPLE } from './modules/local/autocycler_subsample'
 include { AUTOCYCLER_ASSEMBLE } from './modules/local/autocycler_assemble'
 include { AUTOCYCLER_WEIGHT } from './modules/local/autocycler_weight'
 include { AUTOCYCLER_FINISH } from './modules/local/autocycler_finish'
+include { SUMMARIZE_ASSEMBLIES } from './modules/local/summarize_assemblies'
 
 workflow {
 
@@ -74,4 +74,8 @@ workflow {
     AUTOCYCLER_WEIGHT(weight_input_ch)
 
     AUTOCYCLER_FINISH(AUTOCYCLER_WEIGHT.out.assemblies)
+
+    SUMMARIZE_ASSEMBLIES(
+        AUTOCYCLER_FINISH.out.final_dir_for_summary.collect()
+    )
 }

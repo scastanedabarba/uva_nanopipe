@@ -8,7 +8,8 @@ process AUTOCYCLER_FINISH {
     tuple val(isolate), path(assembly_fastas)
 
     output:
-    path "${isolate}/final", emit: final_dir
+    tuple val(isolate), path("${isolate}/final"), emit: final_dir
+    path "${isolate}_final", emit: final_dir_for_summary
 
     script:
     """
@@ -20,5 +21,7 @@ process AUTOCYCLER_FINISH {
         --isolate "${isolate}" \
         --assemblies assemblies \
         --outdir "${isolate}/final"
+
+    cp -r "${isolate}/final" "${isolate}_final"
     """
 }
