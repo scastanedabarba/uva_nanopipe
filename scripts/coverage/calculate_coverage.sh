@@ -122,7 +122,7 @@ echo "[INFO] Running NanoStat pre-trimming: ${ISOLATE}"
 NanoStat --fastq "$READS" -t "$THREADS" -n "$PRE_NANOSTAT"
 
 echo "[INFO] Filtering reads with chopper: ${ISOLATE}"
-gzip -dc "$READS" | chopper -q 10 -l 1000 | gzip > "$TRIMMED_READS"
+chopper -q 10 -l 1000 -i "$READS" | gzip > "$TRIMMED_READS"
 
 if [[ ! -s "$TRIMMED_READS" ]]; then
     echo "[WARNING] Trimmed reads empty for ${ISOLATE}"
