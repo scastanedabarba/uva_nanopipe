@@ -354,3 +354,24 @@ Current status:
 - Autocycler integration functioning
 - Active development ongoing
 
+
+
+## Two-stage execution: preparation and assembly
+
+Run preparation first (QC, Chopper filtering, Raven genome-size estimation, coverage summaries):
+
+```bash
+nextflow run main.nf -profile slurm --input linelist.csv --outdir results/test --step prep
+```
+
+Review `results/test/summary/coverage.csv`, `results/test/summary/read_filtering.csv`, and per-isolate results under `results/test/coverage/`. Inspect or correct each `coverage/<isolate>/genome_size/genome_size.txt` if appropriate.
+
+Then run assembly using the **same outdir** and input CSV:
+
+```bash
+nextflow run main.nf -profile slurm --input linelist.csv --outdir results/test --step assembly
+```
+
+Assembly reads published filtered FASTQs and genome-size/coverage files; it does **not** rerun preparation or require `-resume`. A reduced input CSV may be supplied to assemble only selected isolates, provided they were previously prepared. Samples with missing outputs or a non-OK preparation status cause assembly to stop. Use `-resume` only when retrying the same stage and wanting Nextflow cache reuse.
+
+The `--step` argument is required (`prep` or `assembly`). Basecalling is unchanged and outside these stages.

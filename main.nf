@@ -15,6 +15,10 @@ workflow {
         error "Please provide an input CSV with --input"
     }
 
+    if (!(params.step in ['prep', 'assembly'])) {
+        error "Specify --step prep or --step assembly"
+    }
+
     // Create input channel from linelist
     samples_ch = Channel
         .fromPath(params.input)
@@ -26,18 +30,37 @@ workflow {
             )
         }
 
-    // Filter reads, estimate genome size, and calculate coverage
-    COVERAGE(samples_ch)
-
-    // Summarize coverage across isolates
-    SUMMARIZE_COVERAGE(
-        COVERAGE.out.coverage_dir.collect()
-    )
-
-    // Subsample reads for Autocycler
-    AUTOCYCLER_SUBSAMPLE(
-        COVERAGE.out.subsample_input
-    )
+    // Preparation and assembly are separate Nextflow executions.
+    if (params.step == 'prep') {
+        COVERAGE(samples_ch)
+        SUMMARIZE_COVERAGE(COVERAGE.out.coverage_dir.collect())
+    }
+    else if (params.step == 'assembly') {
+        // Read published preparation files, not paths from a previous work directory.
+        // A reduced linelist can be used to assemble only selected isolates.
+        prep_ch = samples_ch.map { isolate, original_reads ->
+            def prep = file("${params.outdir}/coverage/${isolate}")
+            def trimmed = file("${prep}/trimmed_reads/${isolate}.trimmed.fastq.gz")
+            def genome = file("${prep}/genome_size/genome_size.txt")
+            def coverage = file("${prep}/coverage.csv")
+            [trimmed, genome, coverage].each { f ->
+                if (!f.exists() || !f.isFile() || f.size() == 0)
+                    error "Missing or empty prep output for ${isolate}: ${f}. Run --step prep first."
+            }
+            def gs = genome.text.trim()
+            if (!(gs ==~ /[0-9]+/) || gs.toLong() <= 0L)
+                error "Invalid genome size for ${isolate}: ${gs}"
+            def lines = coverage.readLines()
+            if (lines.size() < 2)
+                error "Invalid coverage.csv for ${isolate}: ${coverage}"
+            def fields = lines[1].split(',', -1)
+            if (fields.size() < 7 || fields[0] != isolate || fields[6].trim() != 'OK')
+                error "Prep QC status is not OK for ${isolate}: ${lines[1]}"
+            if (!(fields[5].trim() ==~ /[0-9]+/) || fields[5].toInteger() <= 0)
+                error "Invalid min_read_depth for ${isolate}: ${fields[5]}"
+            tuple(isolate, trimmed, genome, coverage)
+        }
+        AUTOCYCLER_SUBSAMPLE(prep_ch)
 
     // Create assembly jobs for each assembler and subsample
     assembly_jobs_ch = AUTOCYCLER_SUBSAMPLE.out.subsample_result
@@ -117,4 +140,5 @@ workflow {
     SUMMARIZE_ASSEMBLIES(
         AUTOCYCLER_FINISH.out.final_dir_for_summary.collect()
     )
+    }
 }

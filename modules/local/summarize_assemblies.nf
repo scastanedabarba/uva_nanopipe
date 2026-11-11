@@ -1,4 +1,5 @@
 process SUMMARIZE_ASSEMBLIES {
+    publishDir "${params.outdir}/summary", mode: 'copy'
 
     tag "assembly_summary"
 
@@ -9,8 +10,6 @@ process SUMMARIZE_ASSEMBLIES {
 
     output:
     path "autocycler_assembly_summary.tsv", emit: summary
-
-    publishDir "${params.outdir}/summary", mode: 'copy'
 
     script:
     """
