@@ -7,8 +7,8 @@ process AUTOCYCLER_SUBSAMPLE {
     input:
     tuple val(isolate),
           path(reads),
-          path(genome_size),
-          path(coverage_csv)
+          val(genome_size),
+          val(min_read_depth)
 
     output:
     tuple val(isolate),
@@ -17,13 +17,13 @@ process AUTOCYCLER_SUBSAMPLE {
 
     script:
     """
-    min_read_depth=\$(awk -F',' 'NR==2 {print \$6}' "${coverage_csv}")
+    printf "%s\n" "${genome_size}" > genome_size.txt
 
     ${projectDir}/bin/uva_nanopipe autocycler-subsample \
         --isolate "${isolate}" \
         --reads "${reads}" \
-        --genome-size "${genome_size}" \
-        --min-read-depth "\${min_read_depth}" \
+        --genome-size genome_size.txt \
+        --min-read-depth "${min_read_depth}" \
         --outdir "${isolate}/subsample" \
         --keep-subsampled-reads ${params.keep_subsampled_reads}
     """

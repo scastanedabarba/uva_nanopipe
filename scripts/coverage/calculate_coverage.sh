@@ -175,6 +175,14 @@ min_read_depth=$(awk -v cov="$coverage_est" 'BEGIN {
 }')
 
 echo "isolate,filtered_reads,total_bases,genome_size,coverage_est,min_read_depth,status" > "$COVERAGE_OUT"
-echo "${ISOLATE},${filtered_reads},${total_bases},${genome_size},${coverage_est},${min_read_depth},OK" >> "$COVERAGE_OUT"
+warnings=()
+if awk -v b="$total_bases" 'BEGIN {exit !(b < 100000000)}'; then warnings+=(LOW_TOTAL_BASES); fi
+if (( genome_size < 1000000 )); then warnings+=(LOW_GENOME_SIZE); fi
+if awk -v c="$coverage_est" 'BEGIN {exit !(c < 25)}'; then warnings+=(LOW_COVERAGE); fi
+status="OK"
+if (( ${#warnings[@]} )); then
+    status=$(IFS=';'; echo "${warnings[*]}")
+fi
+echo "${ISOLATE},${filtered_reads},${total_bases},${genome_size},${coverage_est},${min_read_depth},${status}" >> "$COVERAGE_OUT"
 
 echo "[INFO] Coverage step complete: ${ISOLATE}"

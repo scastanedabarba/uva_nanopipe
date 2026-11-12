@@ -81,5 +81,5 @@ PY2
 python3 "$ROOT/scripts/dorado/mapping_to_manifest.py" --mapping "$MAP" --outdir "$RUN_DIR" --reads-dir "$READS" --require-reads
 # Preserve demux summaries, logs and raw reads for inspection; cleanup can be done manually.
 touch "$OUT/.demux_complete"
-echo "Final FASTQs: $READS";echo "Manifest: $RUN_DIR/assembly_input.csv";echo "Extended manifest: $RUN_DIR/assembly_input_extended.csv"
+echo "Final FASTQs: $READS";echo "Manifest: $RUN_DIR/prep_input.csv";echo "Extended manifest: $RUN_DIR/prep_input_extended.csv"
 

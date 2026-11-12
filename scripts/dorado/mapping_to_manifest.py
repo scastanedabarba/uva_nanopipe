@@ -35,7 +35,7 @@ with (out/'mapping.normalized.tsv').open('w',newline='') as fh:
  w=csv.DictWriter(fh,fieldnames=required,delimiter='\t',lineterminator='\n');w.writeheader();w.writerows(clean)
 if a.reads_dir:
  reads=Path(a.reads_dir).resolve()
- with (out/'assembly_input.csv').open('w',newline='') as fh1, (out/'assembly_input_extended.csv').open('w',newline='') as fh2:
+ with (out/'prep_input.csv').open('w',newline='') as fh1, (out/'prep_input_extended.csv').open('w',newline='') as fh2:
   basic=csv.writer(fh1);extended=csv.writer(fh2);basic.writerow(['Isolate','Reads']);extended.writerow(['Isolate','Reads','R1','R2'])
   for row in clean:
    fastq=reads/(row['isolate']+'.fastq.gz')

@@ -8,6 +8,7 @@ process SUMMARIZE_COVERAGE {
     output:
     path "summary/coverage.csv", emit: coverage_summary
     path "summary/read_filtering.csv", emit: filtering_summary
+    path "summary/assembly_input.csv", emit: assembly_manifest
 
     script:
     """
@@ -32,5 +33,10 @@ process SUMMARIZE_COVERAGE {
             echo "[WARNING] Missing read_filtering.csv in \$d" >&2
         fi
     done
+    python3 ${projectDir}/scripts/summarize/create_assembly_manifest.py \
+        --coverage-dir "${file(params.outdir).toAbsolutePath()}/coverage" \
+        --coverage-summary summary/coverage.csv \
+        --output summary/assembly_input.csv \
+        --staged-dirs ${coverage_dirs.join(' ')}
     """
 }

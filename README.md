@@ -1,377 +1,111 @@
 # UVA NanoPipe
 
-UVA NanoPipe is a modular long-read bacterial genome assembly pipeline for Oxford Nanopore sequencing data. The workflow is implemented in Nextflow DSL2 and is designed to provide a reproducible, scalable, and HPC-compatible implementation of the Autocycler assembly workflow.
+UVA NanoPipe is a modular Oxford Nanopore bacterial genome assembly workflow. Basecalling is handled by the existing Dorado/SLURM scripts; preparation and assembly are independently executable Nextflow DSL2 stages. Each stage can accept user-supplied inputs, so no preceding stage is required.
 
-The pipeline primarily serves as an orchestration and workflow management layer around existing long-read assembly tools and the Autocycler consensus framework. UVA NanoPipe automates preprocessing, parallel assembler execution, assembly organization, weighting, and final consensus generation within a reproducible Nextflow environment suitable for SLURM-based HPC systems.
+## Stages and handoffs
 
-In addition to assembly orchestration, the pipeline includes an initial coverage estimation and read filtering stage designed to provide early sequencing quality metrics prior to assembly. These summaries allow users to rapidly identify isolates with insufficient coverage, poor read quality, or other characteristics likely to negatively impact downstream assembly performance. This enables early identification of problematic isolates before computationally intensive assembly steps are performed.
+| Stage | Input | Generated handoff | Other outputs |
+| --- | --- | --- | --- |
+| Basecalling (Dorado scripts) | POD5 and barcode mapping | `prep_input.csv` | FASTQs; optional `prep_input_extended.csv` |
+| Preparation (`--step prep`) | `Isolate,Reads` CSV (generated or user supplied) | `summary/assembly_input.csv` | `summary/coverage.csv`, `summary/read_filtering.csv`, per-isolate filtered FASTQs and genome-size estimates |
+| Assembly (`--step assembly`) | `Isolate,Reads,GenomeSize,MinReadDepth,Assemble` CSV (generated or user supplied) | none | Autocycler results; `summary/autocycler_assembly_summary.tsv`; `assembly/assembly_parameters_used.csv` |
 
-The underlying consensus-generation methodology is provided by Autocycler and associated long-read assemblers. UVA NanoPipe does not replace these tools, but instead provides a modular framework for executing, managing, and scaling them in a standardized workflow.
+The basecalling workflow now writes `prep_input.csv` rather than the previously named `assembly_input.csv`. Its two-column manifest points to the reads produced by Dorado. Users who basecall externally can provide the same two-column CSV themselves.
 
----
+## Preparation input
 
-# Features
-
-- Long-read bacterial genome assembly
-- Parallel multi-assembler execution
-- Autocycler-based consensus assembly
-- Coverage estimation and read filtering
-- Modular Nextflow DSL2 design
-- SLURM-compatible execution
-- Resumable workflow execution
-
----
-
-# Workflow Overview
-
-The pipeline currently performs:
-
-1. Read QC and filtering
-2. Coverage estimation and genome size estimation
-3. Autocycler subsampling
-4. Parallel execution of multiple long-read assemblers
-5. Assembly weighting and collection
-6. Autocycler consensus generation
-
-The workflow is intentionally modular, allowing users to inspect and modify intermediate assemblies prior to final consensus generation.
-
----
-
-# Current Workflow
-
-## Step 1 — Coverage Estimation and Read Filtering
-
-Processes:
-- NanoStat
-- Chopper
-- Genome size estimation using Autocycler helper (Raven)
-- Coverage estimation
-
-Purpose:
-This stage is intended to provide early sequencing QC and assembly feasibility metrics prior to computationally intensive assembly generation. Coverage summaries and filtering statistics can help identify isolates with:
-- insufficient sequencing depth
-- poor read quality
-- abnormal genome size estimates
-- potentially problematic datasets likely to fail assembly
-
-Outputs:
-- `coverage.csv`
-- `read_filtering.csv`
-- filtered FASTQ files
-- `genome_size.txt`
-
-These metrics can be used to evaluate sequencing quality and determine whether additional sequencing or preprocessing may be required prior to assembly.
-
----
-
-## Step 2 — Autocycler Subsampling
-
-Runs:
-- `autocycler subsample`
-
-Outputs:
-- subsampled read sets
-- assembly-ready FASTQ files
-
----
-
-## Step 3 — Parallel Assembly
-
-Each assembler/subsample combination is submitted independently through Nextflow + SLURM.
-
-Supported assemblers:
-- raven
-- miniasm
-- flye
-- metamdbg
-- necat
-- nextdenovo
-- canu
-- plassembler
-
-Each assembler is run independently on:
-- `sample_01`
-- `sample_02`
-- `sample_03`
-- `sample_04`
-
-Outputs:
-- individual assembler FASTA files
-- assembler logs
-- assembler-specific intermediate outputs
-
-Example:
-- `canu_01.fasta`
-- `flye_02.fasta`
-- `raven_03.fasta`
-
----
-
-## Step 4 — Assembly Weighting
-
-Post-processing includes:
-- collection of all assembly FASTAs
-- Plassembler circular contig weighting
-- Flye/Canu consensus weighting
-
-Outputs:
-- weighted assembly FASTAs for Autocycler consensus generation
-
----
-
-## Step 5 — Autocycler Finalization
-
-Runs:
-- `autocycler compress`
-- `autocycler cluster`
-- `autocycler trim`
-- `autocycler resolve`
-- `autocycler combine`
-
-Outputs:
-- final consensus assembly
-- Autocycler intermediate outputs
-- clustering information
-- consensus graph files
-
----
-
-# Pipeline Structure
-
-```text
-uva_nanopipe/
-├── bin/
-├── conf/
-├── envs/
-├── modules/
-│   └── local/
-├── scripts/
-├── main.nf
-├── nextflow.config
-└── README.md
-```
-
----
-
-# Input Format
-
-## Example Input CSV
+Create a CSV containing FASTQ paths:
 
 ```csv
 Isolate,Reads
-AR_091,/path/to/AR_091.fastq.gz
+AR_091,/data/AR_091.fastq.gz
+AR_092,/data/AR_092.fastq.gz
 ```
 
-Required columns:
-- `Isolate`
-- `Reads`
-
----
-
-# Running the Pipeline
-
-## Example Run
+Use unique isolate IDs consisting of letters, numbers, dots, hyphens, or underscores. Provide absolute FASTQ paths for portability. Reads may come from UVA NanoPipe basecalling or any other workflow. Preparation performs NanoStat read statistics, Chopper filtering (Q10, minimum length 1000 bp), Raven/Autocycler genome-size estimation, and estimated depth calculation.
 
 ```bash
-nextflow run main.nf \
-    -profile slurm \
-    -c conf/uva.config \
-    --input linelist.csv \
-    --outdir results/test
+nextflow run /home/sgj4qr/github_repos/uva_nanopipe/main.nf \
+  -profile slurm \
+  --step prep \
+  --input /path/to/prep_input.csv \
+  --outdir /scratch/sgj4qr/nanopore_run
 ```
 
-## Resume Previous Run
-
-```bash
--resume
-```
-
----
-
-# Example SLURM Configuration
-
-## `conf/uva.config`
-
-```nextflow
-executor {
-    exitReadTimeout = '2 h'
-}
-
-process {
-
-    executor = 'slurm'
-    queue = 'standard'
-    account = 'amr_services_paid'
-
-    cpus = 8
-    memory = '32 GB'
-    time = '48h'
-}
-
-params {
-    plassembler_db = "/path/to/plassembler_db"
-}
-```
-
----
-
-# Plassembler Database
-
-If Plassembler is enabled, a Plassembler database must be installed separately.
-
-## Install Database
-
-```bash
-conda activate autocycler
-
-plassembler download -d /path/to/plassembler_db
-```
-
-## Provide Database Path
-
-Command line:
-
-```bash
---plassembler_db /path/to/plassembler_db
-```
-
-or in config:
-
-```nextflow
-params {
-    plassembler_db = "/path/to/plassembler_db"
-}
-```
-
----
-
-# Output Structure
-
-Example isolate output:
+Review the generated files before assembly:
 
 ```text
-results/
-└── AR_091/
-    ├── coverage/
-    ├── subsample/
-    ├── assemblies_raw/
-    ├── drafts/
-    └── final/
+nanopore_run/
+├── coverage/
+│   ├── AR_091/
+│   │   ├── trimmed_reads/AR_091.trimmed.fastq.gz
+│   │   ├── genome_size/genome_size.txt
+│   │   ├── coverage.csv
+│   │   └── read_filtering.csv
+│   └── AR_092/...
+└── summary/
+    ├── coverage.csv
+    ├── read_filtering.csv
+    └── assembly_input.csv
 ```
 
----
+### Coverage summary and warnings
 
-# Design Philosophy
+`summary/coverage.csv` reports filtered reads, filtered total bases, estimated genome size, estimated coverage, the pipeline's proposed minimum read depth, and `status`.
 
-UVA NanoPipe is designed as a workflow implementation layer around Autocycler rather than a novel assembly algorithm itself.
+- `LOW_TOTAL_BASES`: fewer than 100,000,000 filtered bases (100 Mbp).
+- `LOW_GENOME_SIZE`: estimated genome size below 1,000,000 bp. Researchers should also verify that *any* predicted genome size matches the expected organism.
+- `LOW_COVERAGE`: estimated depth below 25×.
+- Multiple warnings are joined with semicolons, e.g. `LOW_TOTAL_BASES;LOW_COVERAGE`.
+- `OK`: no warnings and processing succeeded.
+- `READS_NOT_FOUND`, `TRIMMED_READS_EMPTY`, `GENOME_SIZE_FAILED`: processing failures. These isolates remain in the manifest but default to `Assemble=false`.
 
-Key goals include:
-- reproducible execution on HPC systems
-- modular DSL2 workflow organization
-- scalable parallel assembly execution
-- simplified management of multiple assembler outputs
-- compatibility with containerized and nf-core-style workflows
-- preservation of Autocycler’s flexible manual inspection workflow
+Thresholds are strict: exactly 100 Mbp, 1 Mbp, or 25× does not trigger a warning. These are screening warnings, **not** a species-aware quality assessment or an automatic assembly exclusion. `read_filtering.csv` retains its existing computational-status semantics.
 
-Autocycler is intentionally separated into:
-1. Draft assembly generation
-2. Final consensus generation
+The existing Autocycler minimum-depth selection is unchanged: when estimated coverage is below 25×, the proposed `MinReadDepth` is 10; otherwise it is 25. This parameter is a *minimum subsample depth*, not a cap on the sequencing depth Autocycler may use. A 10× fallback does not imply that low-depth assembly will be reliable.
 
-This design allows users to:
-- inspect intermediate assemblies
-- remove problematic assemblies
-- manually modify weights
-- rerun finalization independently
-- debug assembler-specific issues without rerunning the entire workflow
+## Assembly input
 
-UVA NanoPipe aims to make these steps easier to execute reproducibly at scale while preserving the flexibility of the original Autocycler methodology.
+Preparation generates an editable `summary/assembly_input.csv`:
 
----
+```csv
+Isolate,Reads,GenomeSize,MinReadDepth,Assemble
+AR_091,/absolute/path/to/AR_091.trimmed.fastq.gz,5100000,25,true
+AR_092,/absolute/path/to/AR_092.trimmed.fastq.gz,4200000,10,true
+AR_093,,NA,,false
+```
 
-# Development Priorities
+All isolates remain in the manifest. Processing successes (including QC warnings) default to `true`; processing failures default to `false`. Researchers can change `Assemble` to `false` to skip an isolate, or to `true` after correcting missing inputs. For `Assemble=true`, the FASTQ path must exist, `GenomeSize` must be a positive integer (bp), and `MinReadDepth` must be a positive integer. `MinReadDepth` defaults to 25 if omitted or blank in a user-created assembly manifest; `Assemble` defaults to `true` if omitted or blank. For `Assemble=false`, other values may be blank or `NA`.
 
-Current priorities:
-1. Stabilize workflow behavior
-2. Add polishing
-3. Add annotation
-4. Add QC summaries
-5. Add container support
-6. Add nf-core compatibility
-7. Add automated reporting
-
----
-
-# Useful Commands
-
-## Monitor Jobs
+**The assembly stage accepts a manually created CSV of exactly this format.** It does not require that the preparation stage was run or that QC summary files exist. Researchers entering directly at assembly are responsible for their own read QC and filtering. The supplied genome size and minimum read depth are authoritative; the pipeline does not silently replace them with previous estimates.
 
 ```bash
-squeue -u $USER
+nextflow run /home/sgj4qr/github_repos/uva_nanopipe/main.nf \
+  -profile slurm \
+  --step assembly \
+  --input /scratch/sgj4qr/nanopore_run/summary/assembly_input.csv \
+  --outdir /scratch/sgj4qr/nanopore_run
 ```
 
-## Check SLURM Accounting
+The original input manifest (including skipped rows) is copied to `assembly/assembly_parameters_used.csv` at execution. Keep the input CSV and run directory for reproducibility; a subsequent run into the same output directory can overwrite this record, so use separate output directories for distinct runs.
 
-```bash
-sacct -j <JOBID>
+### Existing Autocycler behavior
+
+Assembly still runs `autocycler subsample`, four subsamples (`sample_01` through `sample_04`), the configured assemblers, assembly weighting, and Autocycler compress/cluster/trim/resolve/combine. The subsampling script and underlying assembly algorithms are unchanged. The default assemblers are Raven, Miniasm, Flye, metaMDBG, NECAT, NextDenovo, Plassembler, and Canu. The Plassembler database must be supplied with `--plassembler_db` when Plassembler is selected. Check the installed Autocycler version and its subsampling behavior before changing the minimum-depth policy.
+
+## Execution environments
+
+The `local`, `slurm`, and `apptainer` profiles are defined in `nextflow.config`. SLURM requires an appropriate partition and account for your site. For example, add to your local `slurm` profile:
+
+```groovy
+process.queue = 'standard'
+process.clusterOptions = '--account=amr_services_paid'
 ```
 
-## Inspect Logs
+These values are site-specific, not portable defaults. The assembly modules currently use the Rivanna-specific Autocycler Conda environment at `/scratch/sgj4qr/pgcoe_nanopore/autocycler`; configure that environment for your installation. Preparation uses `envs/coverage.yml`.
 
-```bash
-find work -name ".command.err"
-find work -name ".command.out"
-```
+Nextflow `-resume` can reuse cached tasks when their inputs and code have not changed. Moving from preparation to assembly does **not** require `-resume`; the stages are separate invocations with explicit manifests.
 
-## Clean Failed Cached Processes
+## Development and testing
 
-```bash
-nextflow clean -f
-```
-
----
-
-# Troubleshooting
-
-## Canu Jobs Reported as Failed While Still Running
-
-Some SLURM systems may require increasing:
-
-```nextflow
-executor {
-    exitReadTimeout = '2 h'
-}
-```
-
-to prevent premature Nextflow timeout detection for long-running Canu jobs.
-
----
-
-# Status
-
-Current status:
-- Core assembly workflow operational
-- Parallel assembly functioning
-- Autocycler integration functioning
-- Active development ongoing
-
-
-
-## Two-stage execution: preparation and assembly
-
-Run preparation first (QC, Chopper filtering, Raven genome-size estimation, coverage summaries):
-
-```bash
-nextflow run main.nf -profile slurm --input linelist.csv --outdir results/test --step prep
-```
-
-Review `results/test/summary/coverage.csv`, `results/test/summary/read_filtering.csv`, and per-isolate results under `results/test/coverage/`. Inspect or correct each `coverage/<isolate>/genome_size/genome_size.txt` if appropriate.
-
-Then run assembly using the **same outdir** and input CSV:
-
-```bash
-nextflow run main.nf -profile slurm --input linelist.csv --outdir results/test --step assembly
-```
-
-Assembly reads published filtered FASTQs and genome-size/coverage files; it does **not** rerun preparation or require `-resume`. A reduced input CSV may be supplied to assemble only selected isolates, provided they were previously prepared. Samples with missing outputs or a non-OK preparation status cause assembly to stop. Use `-resume` only when retrying the same stage and wanting Nextflow cache reuse.
-
-The `--step` argument is required (`prep` or `assembly`). Basecalling is unchanged and outside these stages.
+Before processing a cohort, test one isolate through both stages, inspect the summary files, and verify that a manually created assembly manifest can run without any preparation directory. The code has not been end-to-end tested on SLURM as part of this update.
