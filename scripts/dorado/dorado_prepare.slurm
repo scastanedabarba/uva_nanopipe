@@ -3,13 +3,13 @@
 #SBATCH --mem=64G
 #SBATCH --time=24:00:00
 set -euo pipefail
-(($#==6)) || { echo 'Usage: dorado_prepare.slurm POD5_DIR RUN_DIR MAPPING KIT DORADO_BIN MODELS_DIR' >&2;exit 2; }
-RAW=$1; RUN_DIR=$2; MAPPING=$3; KIT=$4; DORADO=$5; MODELS_DIR=$6
+(($#==7)) || { echo 'Usage: dorado_prepare.slurm POD5_DIR RUN_DIR MAPPING KIT DORADO_BIN MODELS_DIR RUN_NAME' >&2;exit 2; }
+RAW=$1; RUN_DIR=$2; MAPPING=$3; KIT=$4; DORADO=$5; MODELS_DIR=$6; RUN=$7
 MODEL="$MODELS_DIR/dna_r10.4.1_e8.2_400bps_sup@v5.2.0"
 module purge;module load miniforge;module use /project/som_infc_dis_mathers/modulefiles/;module load pod5
 command -v pod5 >/dev/null; [[ -x $DORADO && -d $MODEL ]] || { echo 'Dorado or SUP model missing' >&2;exit 1; }
 find "$MODELS_DIR" -maxdepth 1 -type d -name 'dna_r10.4.1_e8.2_5khz_stereo@*' | grep -q . || { echo 'No stereo model installed' >&2;exit 1; }
-PREP="$RUN_DIR/preparation"; mkdir -p "$PREP/channel_split" "$PREP/batch_lists"
+PREP="$RUN_DIR/basecalling/$RUN/work/preparation"; mkdir -p "$PREP/channel_split" "$PREP/batch_lists"
 [[ -s $MAPPING ]] || { echo 'Missing mapping' >&2;exit 1; }
 find "$RAW" -type f -name '*.pod5' | sort > "$PREP/pod5.list"
 [[ -s $PREP/pod5.list ]] || { echo 'No POD5 files' >&2;exit 1; }

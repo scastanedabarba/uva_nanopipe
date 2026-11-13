@@ -70,19 +70,20 @@ DORADO_BIN=$(realpath "$DORADO_BIN")
 MODELS_DIR=$(realpath "$MODELS_DIR")
 mkdir -p "$OUTDIR"
 RUN_DIR=$(realpath "$OUTDIR")
-mkdir -p "$RUN_DIR/logs" "$RUN_DIR/preparation"
+mkdir -p "$RUN_DIR/logs/$RUN" "$RUN_DIR/basecalling/$RUN/work/preparation" "$RUN_DIR/demux/$RUN" "$RUN_DIR/summary/$RUN" "$RUN_DIR/versions"
+PREP_DIR="$RUN_DIR/basecalling/$RUN/work/preparation"
 
 # Validate and normalize the mapping before submitting any jobs.
 python3 "$ROOT/scripts/dorado/mapping_to_manifest.py" \
-  --mapping "$MAPPING" --outdir "$RUN_DIR/preparation"
-MAPPING="$RUN_DIR/preparation/mapping.normalized.tsv"
+  --mapping "$MAPPING" --outdir "$PREP_DIR"
+MAPPING="$PREP_DIR/mapping.normalized.tsv"
 
 # Record the exact configuration used for this run.
 {
   printf 'DORADO_BIN=%q\n' "$DORADO_BIN"
   printf 'DORADO_MODEL=%q\n' "$DORADO_MODEL"
   printf 'MODELS_DIR=%q\n' "$MODELS_DIR"
-} > "$RUN_DIR/preparation/dorado_config_used.sh"
+} > "$PREP_DIR/dorado_config_used.sh"
 
 printf 'Run directory: %s\nDorado: %s\nSUP model: %s\nModels directory: %s\n' \
   "$RUN_DIR" "$DORADO_BIN" "$DORADO_MODEL" "$MODELS_DIR"
@@ -95,27 +96,27 @@ command -v sbatch >/dev/null 2>&1 || die 'sbatch not found'
 prep=$(sbatch --parsable \
   --account="$ACCOUNT" --partition="$PARTITION" \
   --job-name="dprep_${RUN}" \
-  --output="$RUN_DIR/logs/prepare.%j.out" \
-  --error="$RUN_DIR/logs/prepare.%j.err" \
+  --output="$RUN_DIR/logs/$RUN/prepare.%j.out" \
+  --error="$RUN_DIR/logs/$RUN/prepare.%j.err" \
   "$ROOT/scripts/dorado/dorado_prepare.slurm" \
-  "$POD5" "$RUN_DIR" "$MAPPING" "$KIT" "$DORADO_BIN" "$MODELS_DIR")
+  "$POD5" "$RUN_DIR" "$MAPPING" "$KIT" "$DORADO_BIN" "$MODELS_DIR" "$RUN")
 
 base=$(sbatch --parsable \
   --dependency="afterok:${prep%%;*}" --account="$ACCOUNT" \
   --job-name="dbc_${RUN}" \
-  --output="$RUN_DIR/logs/basecall.%j.out" \
-  --error="$RUN_DIR/logs/basecall.%j.err" \
+  --output="$RUN_DIR/logs/$RUN/basecall.%j.out" \
+  --error="$RUN_DIR/logs/$RUN/basecall.%j.err" \
   "$ROOT/scripts/dorado/dorado_basecall.slurm" \
-  "$RUN_DIR" "$DORADO_BIN" "$MODELS_DIR")
+  "$RUN_DIR" "$DORADO_BIN" "$MODELS_DIR" "$RUN")
 
 demux=$(sbatch --parsable \
   --dependency="afterok:${base%%;*}" \
   --account="$ACCOUNT" --partition="$PARTITION" \
   --job-name="ddemux_${RUN}" \
-  --output="$RUN_DIR/logs/demux.%j.out" \
-  --error="$RUN_DIR/logs/demux.%j.err" \
+  --output="$RUN_DIR/logs/$RUN/demux.%j.out" \
+  --error="$RUN_DIR/logs/$RUN/demux.%j.err" \
   "$ROOT/scripts/dorado/dorado_demux.slurm" \
-  "$RUN_DIR" "$DORADO_BIN")
+  "$RUN_DIR" "$DORADO_BIN" "$RUN" "$ROOT")
 
 printf 'Preparation job: %s\nBasecalling job: %s\nDemultiplexing job: %s\n' \
   "$prep" "$base" "$demux"

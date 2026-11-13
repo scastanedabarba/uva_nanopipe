@@ -12,6 +12,52 @@ UVA NanoPipe is a modular Oxford Nanopore bacterial genome assembly workflow. Ba
 
 The basecalling workflow now writes `prep_input.csv` rather than the previously named `assembly_input.csv`. Its two-column manifest points to the reads produced by Dorado. Users who basecall externally can provide the same two-column CSV themselves.
 
+## Dorado basecalling and demultiplexing output (run-scoped)
+
+Launch using `bash bin/run_dorado.sh --pod5-dir ... --run-name RUN_NAME --mapping mapping.tsv --kit SQK-RBK114-24 --outdir OUTDIR`. The three dependent SLURM jobs retain their existing prepare → basecall → demux order. The `--outdir` is a shared output root, **not** a per-run directory.
+
+```text
+OUTDIR/
+  basecalling/RUN_NAME/
+    duplex.bam                  # full merged simplex/duplex BAM
+    demux_input.bam             # dx:0 and dx:1 only
+    duplex_summary.tsv
+    models_used.txt
+    read_groups.tsv
+    basecalling.commands.txt
+    basecalling_demux.versions.txt
+    work/                       # channel split, batch lists, chunks, failed batches
+  demux/RUN_NAME/
+    ISOLATE.fastq.gz            # trimmed and ready for prep
+    barcodeXX.fastq.gz          # unexpected assignments, if any
+    unclassified.fastq.gz       # unclassified, if any
+    demux.commands.txt
+    demux.log
+    work/raw/                   # original Dorado barcode FASTQs and summary
+    work/intermediate/          # uncompressed isolate FASTQs
+  summary/RUN_NAME/
+    RUN_NAME.duplex_metrics.tsv
+    RUN_NAME.barcode_summary.tsv
+    RUN_NAME.demux_summary.tsv
+    RUN_NAME.trim_summary.tsv
+    RUN_NAME.pycoqc.html
+    RUN_NAME.pycoqc.json
+    RUN_NAME.pycoqc.log
+    RUN_NAME.pycoqc_status.tsv
+    RUN_NAME.basecalling_summary.tsv
+  versions/RUN_NAME.basecalling_demux.versions.txt
+  prep_input.csv
+  prep_input_extended.csv
+```
+
+All run-specific QC filenames have the run prefix, enabling later cross-run aggregation. Tabular QC outputs include a `run_name` field except `trim_summary.tsv` and the metric/value duplex file; those are stored in run-scoped directories and identified by filename. The combined version file in `versions/` is an exact copy of the one in `basecalling/RUN_NAME/`.
+
+**Retention:** No automatic intermediate cleanup. The raw Dorado demultiplexed FASTQs, per-batch BAMs, channel splits, and uncompressed intermediate FASTQs are retained. Rerunning a stage may regenerate/replace its working outputs; use unique output roots for independent analyses.
+
+**QC:** Duplex read and base counts are computed from `dx` tags in the full BAM; duplex rate is `2*dx1_reads/(dx0_reads+dx_minus1_reads)*100`, and duplex base fraction is `dx1_bases/(dx0_bases+dx1_bases)*100`. PycoQC is run with `--min_pass_qual 10 --min_pass_len 1000`; its failure is nonfatal and logged in `RUN_NAME.pycoqc_status.tsv`. Barcode assignment summaries use untrimmed raw demultiplexed FASTQs as the denominator and distinguish expected, unexpected, and unclassified assignments.
+
+**Handoff:** `prep_input.csv` includes only mapped isolates and absolute paths to `demux/RUN_NAME/ISOLATE.fastq.gz`. Because the manifest lives at the shared output root, it describes the most recently completed demultiplexing run; archive it before running another run to the same root.
+
 ## Preparation input
 
 Create a CSV containing FASTQ paths:
