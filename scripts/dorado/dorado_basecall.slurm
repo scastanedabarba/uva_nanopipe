@@ -5,8 +5,8 @@
 #SBATCH --mem=100G
 #SBATCH --time=2-00:00:00
 set -euo pipefail
-(($#==4)) || { echo 'Usage: dorado_basecall.slurm RUN_DIR DORADO_BIN MODELS_DIR RUN_NAME' >&2;exit 2; }
-RUN_DIR=$1;DORADO=$2;MODELS_DIR=$3;RUN=$4;OUT="$RUN_DIR/basecalling/$RUN";PREP="$OUT/work/preparation";SUM="$RUN_DIR/summary/$RUN"
+(($#==5)) || { echo 'Usage: dorado_basecall.slurm RUN_DIR DORADO_BIN MODELS_DIR RUN_NAME PIPELINE_ROOT' >&2;exit 2; }
+RUN_DIR=$1;DORADO=$2;MODELS_DIR=$3;RUN=$4;ROOT=$5;OUT="$RUN_DIR/basecalling/$RUN";PREP="$OUT/work/preparation";SUM="$RUN_DIR/summary/$RUN"
 module purge;module load miniforge;module use /project/som_infc_dis_mathers/modulefiles/;module load samtools;module load pod5
 [[ -f $PREP/.preparation_complete ]] || { echo 'Preparation not complete' >&2;exit 1; }
 source "$PREP/preparation_config.sh"
@@ -55,6 +55,7 @@ valid "$OUT/demux_input.bam.tmp" || { echo 'Invalid demux BAM' >&2;exit 1; }
 mv "$OUT/demux_input.bam.tmp" "$OUT/demux_input.bam"
 printf '%q ' "$DORADO" summary "$OUT/duplex.bam" >> "$OUT/basecalling.commands.txt"
 printf '> %q\n' "$OUT/duplex_summary.tsv" >> "$OUT/basecalling.commands.txt"
-python3 "$(dirname "$0")/duplex_metrics.py" "$OUT/duplex.bam" "$SUM/$RUN.duplex_metrics.tsv"
+python3 "$ROOT/scripts/dorado/duplex_metrics.py" "$OUT/duplex.bam" "$SUM/$RUN.duplex_metrics.tsv"
 touch "$OUT/.basecalling_complete"
 echo "Completed basecalling: $OUT/duplex.bam"
+

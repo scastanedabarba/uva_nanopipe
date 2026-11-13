@@ -107,7 +107,7 @@ base=$(sbatch --parsable \
   --output="$RUN_DIR/logs/$RUN/basecall.%j.out" \
   --error="$RUN_DIR/logs/$RUN/basecall.%j.err" \
   "$ROOT/scripts/dorado/dorado_basecall.slurm" \
-  "$RUN_DIR" "$DORADO_BIN" "$MODELS_DIR" "$RUN")
+  "$RUN_DIR" "$DORADO_BIN" "$MODELS_DIR" "$RUN" "$ROOT")
 
 demux=$(sbatch --parsable \
   --dependency="afterok:${base%%;*}" \
@@ -120,4 +120,5 @@ demux=$(sbatch --parsable \
 
 printf 'Preparation job: %s\nBasecalling job: %s\nDemultiplexing job: %s\n' \
   "$prep" "$base" "$demux"
+
 
